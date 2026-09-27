@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="kk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Ғарыш: Күн Жүйесі және TON 618</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+        }
+
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #000;
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+            color: #fff;
+        }
+
+        #webgl-container {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+
+        /* Үстіңгі тақырып пен Бөлшектер */
+        .header {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 10;
+            pointer-events: none;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            font-weight: 700;
+            letter-spacing: 2px;
+            background: linear-gradient(45deg, #ffd700, #ff8c00, #00f2fe);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-transform: uppercase;
+        }
+
+        .header p {
+            font-size: 13px;
+            color: #aaa;
+            margin-top: 4px;
+        }
+
+        /* Басқару Панелі (Оң жақ жоғары) */
+        .top-right-controls {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 10;
+            display: flex;
+            gap: 12px;
+        }
+
+        .btn {
+            background: rgba(20, 20, 30, 0.75);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: #fff;
+            padding: 10px 18px;
+            border-radius: 30px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+            backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+        }
+
+        .btn:hover {
+            background: rgba(40, 40, 60, 0.9);
+            border-color: #00d2ff;
+            box-shadow: 0 0 15px rgba(0, 210, 255, 0.4);
+            transform: translateY(-2px);
+        }
+
+        .btn-donate {
+            background: linear-gradient(135deg, #ff007f, #7928ca);
+            border: none;
+        }
+
+        .btn-donate:hover {
+            box-shadow: 0 0 20px rgba(255, 0, 127, 0.6);
+        }
+
+        /* Планеталарды таңдау мәзірі (Төменде) */
+        .planet-nav {
+            position: absolute;
+            bottom: 25px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+            display: flex;
+            gap: 8px;
+            background: rgba(10, 10, 20, 0.8);
+            padding: 8px 12px;
+            border-radius: 40px;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(15px);
+            max-width: 95vw;
+            overflow-x: auto;
+        }
+
+        .planet-btn {
+            background: transparent;
+            border: 1px solid transparent;
+            color: #ccc;
+            padding: 8px 14px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 500;
+            white-space: nowrap;
+            transition: all 0.3s;
+        }
+
+        .planet-btn:hover, .planet-btn.active {
+            background: rgba(255, 255, 255, 0.15);
+            color: #fff;
+            border-color: rgba(0, 210, 255, 0.5);
+            text-shadow: 0 0 8px rgba(0,210,255,0.8);
+        }
+
+        .planet-btn.ton-btn {
+            background: rgba(255, 0, 85, 0.2);
+            border-color: rgba(255, 0, 85, 0.4);
+            color: #ff4081;
+        }
+
+        .planet-btn.ton-btn:hover, .planet-btn.ton-btn.active {
+            background: #ff0055;
+            color: #fff;
+            box-shadow: 0 0 15px rgba(255, 0, 85, 0.8);
+        }
+
+        /* Ақпараттық панель (Сол жақ төмен) */
+        .info-card {
+            position: absolute;
+            bottom: 90px;
+            left: 20px;
+            z-index: 10;
+            width: 320px;
+            background: rgba(15, 15, 25, 0.85);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 16px;
+            padding: 20px;
+            backdrop-filter: blur(20px);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+            transition: opacity 0.4s ease, transform 0.4s ease;
+        }
+
+        .info-card h2 {
+            font-size: 20px;
+            color: #00f2fe;
+            margin-bottom: 6px;
+        }
+
+        .info-card .tag {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #aaa;
+            margin-bottom: 12px;
+            display: block;
+        }
+
+        .info-card p {
+            font-size: 13px;
+            line-height: 1.6;
+            color: #ddd;
+            margin-bottom: 15px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            border-top: 1px solid rgba(255,255,255,0.1);
+            padding-top: 12px;
+        }
+
+        .stat-item span {
+            display: block;
+            font-size: 10px;
+            color: #888;
+        }
+
+        .stat-item strong {
+            font-size: 12px;
+            color: #fff;
+        }
+
+        /* Модальді терезе (Кодты көшіру) */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.85);
+            z-index: 100;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            backdrop-filter: blur(10px);
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: #12131c;
+            border: 1px solid rgba(255,255,255,0.2);
+            width: 80%;
+            max-width: 800px;
+            max-height: 80vh;
+            border-radius: 16px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.9);
+        }
+
+        .modal-header {
+            padding: 16px 20px;
+            background: rgba(255,255,255,0.05);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .modal-header h3 {
+            font-size: 16px;
+            color: #fff;
+        }
+
+        .close-btn {
+            background: transparent;
+            border: none;
+            color: #aaa;
+            font-size: 20px;
+            cursor: pointer;
+        }
+
+        .close-btn:hover {
+            color: #fff;
+        }
+
+        .modal-body {
+            padding: 20px;
+            overflow-y: auto;
+            flex-grow: 1;
+        }
+
+        textarea.code-area {
+            width: 100%;
+            height: 350px;
+            background: #08090d;
+            border: 1px solid rgba(255,255,255,0.1);
+            color: #00ffcc;
+            font-family: monospace;
+            font-size: 12px;
+            padding: 12px;
+            border-radius: 8px;
+            resize: none;
+            outline: none;
+        }
+
+        .modal-footer {
+            padding: 15px 20px;
+            background: rgba(255,255,255,0.05);
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            border-top: 1px solid rgba(255,255,255,0.1);
+        }
+    </style>
+
+    <!-- Three.js және OrbitControls кітапханалары -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+<body>
+
+    <div id="webgl-container"></div>
+
+    <div class="header">
+        <h1>3D Ғарыш Зерттеушісі</h1>
+        <p>Күн Жүйесі + TON 618 Аса Жойқын Қара Құрдымы (360° Интерактив)</p>
+    </div>
+
+    <div class="top-right-controls">
+        <button class="btn btn-donate" onclick="openDonateModal()">💎 Донат ($99)</button>
+        <button class="btn" onclick="openCodeModal()">💻 Кодты алу</button>
+    </div>
+
+    <!-- Ақпараттық блок -->
+    <div class="info-card" id="infoCard">
+        <h2 id="objectName">Күн</h2>
+        <span class="tag" id="objectType">Жұлдыз</span>
+        <p id="objectDesc">Күн жүйесінің орталық жұлдызы. Барлық планеталар осы жұлдызды айнала қозғалады.</p>
+        <div class="stats-grid">
+            <div class="stat-item">
+                <span>Массасы / Сипаты</span>
+                <strong id="stat1">1.989 × 10^30 кг</strong>
+            </div>
+            <div class="stat-item">
+                <span>Қашықтық / Диаметр</span>
+                <strong id="stat2">1,392,700 км</strong>
+            </div>
+        </div>
+    </div>
+
+    <!-- Навигациялық Батырмалар -->
+    <div class="planet-nav" id="planetNav"></div>
+
+    <!-- Модальді Терезе: Кодты Көшіру -->
+    <div class="modal" id="codeModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>HTML/JS Бастапқы Коды</h3>
+                <button class="close-btn" onclick="closeCodeModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p style="font-size: 13px; color: #aaa; margin-bottom: 10px;">
+                    Төмендегі кодты толығымен көшіріп, өз жобаңызға пайдалансаңыз болады:
+                </p>
+                <textarea class="code-area" id="codeArea" readonly></textarea>
+            </div>
+            <div class="modal-footer">
+                <button class="btn" onclick="copySourceCode()">📋 Кодты көшіру</button>
+                <button class="btn" onclick="closeCodeModal()" style="background: rgba(255,255,255,0.1);">Жабу</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальді Терезе: Донат -->
+    <div class="modal" id="donateModal">
+        <div class="modal-content" style="max-width: 450px; text-align: center;">
+            <div class="modal-header">
+                <h3>Донат және Қолдау ($99)</h3>
+                <button class="close-btn" onclick="closeDonateModal()">&times;</button>
+            </div>
+            <div class="modal-body" style="padding: 30px;">
+                <div style="font-size: 48px; margin-bottom: 15px;">🚀</div>
+                <h2 style="color: #00f2fe; margin-bottom: 10px;">Жобаны қолдау</h2>
+                <p style="font-size: 14px; color: #ccc; line-height: 1.5; margin-bottom: 20px;">
+                    3D Ғарыштық визуализация жобасын қолдағаныңыз үшін алғыс білдіреміз! Премиум мүмкіндіктер мен кодты жүктеп алу толық ашық.
+                </p>
+                <button class="btn btn-donate" style="width: 100%; justify-content: center; font-size: 15px; padding: 12px;" onclick="closeDonateModal()">Рахмет! Қайту</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 1. Аспан денелерінің мәліметтер базасы (Қазақ тілінде)
+        const celestialData = [
+            {
+                id: 'sun',
+                name: 'Күн (Sun)',
+                type: 'Жұлдыз (G2V)',
+                desc: 'Күн жүйесінің орталығындағы сары ергежейлі жұлдыз. Жүйедегі жалпы массаның 99.86% құрайды.',
+                stat1: '1.989 × 10^30 кг',
+                stat2: '1,392,700 км',
+                color: 0xffaa00,
+                size: 8,
+                dist: 0,
+                speed: 0
+            },
+            {
+                id: 'mercury',
+                name: 'Меркурий',
+                type: 'Жартасты планета',
+                desc: 'Күнге ең жақын және Күн жүйесіндегі ең кіші планета. Серіктері жоқ.',
+                stat1: '3.301 × 10^23 кг',
+                stat2: '4,879 км',
+                color: 0xaaaaaa,
+                size: 1.2,
+                dist: 16,
+                speed: 0.03
+            },
+            {
+                id: 'venus',
+                name: 'Шолпан (Venus)',
+                type: 'Жартасты планета',
+                desc: 'Парниктік эффектке байланысты Күн жүйесіндегі ең ыстық планета. Беткі температурасы 465°C.',
+                stat1: '4.867 × 10^24 кг',
+                stat2: '12,104 км',
+                color: 0xe3bb76,
+                size: 1.8,
+                dist: 24,
+                speed: 0.02
+            },
+            {
+                id: 'earth',
+                name: 'Жер (Earth)',
+                type: 'Тіршілігі бар планета',
+                desc: 'Адамзаттың мекені, бетінде сұйық суы бар жалғыз белгілі аспан денесі.',
+                stat1: '5.972 × 10^24 кг',
+                stat2: '12,742 км',
+                color: 0x2288ff,
+                size: 2.0,
+                dist: 34,
+                speed: 0.015
+            },
+            {
+                id: 'mars',
+                name: 'Марс',
+                type: 'Жартасты планета',
+                desc: 'Қызыл планета. Топырағында темір оксиді көп болғандықтан қызыл түсті болып көрінеді.',
+                stat1: '6.417 × 10^23 кг',
+                stat2: '6,779 км',
+                color: 0xff4422,
+                size: 1.5,
+                dist: 44,
+                speed: 0.012
+            },
+            {
+                id: 'jupiter',
+                name: 'Юпитер',
+                type: 'Газ гиганты',
+                desc: 'Күн жүйесіндегі ең үлкен планета. Оның белгілі "Үлкен Қызыл Дағы" - алып дауыл.',
+                stat1: '1.898 × 10^27 кг',
+                stat2: '139,820 км',
+                color: 0xdca171,
+                size: 4.5,
+                dist: 60,
+                speed: 0.008
+            },
+            {
+                id: 'saturn',
+                name: 'Сатурн',
+                type: 'Газ гиганты',
+                desc: 'Әдемі мұзды сақиналарымен танымал Күн жүйесіндегі екінші үлкен планета.',
+                stat1: '5.683 × 10^26 кг',
+                stat2: '116,460 км',
+                color: 0xe6ca65,
+                size: 3.8,
+                dist: 78,
+                speed: 0.006,
+                hasRings: true
+            },
+            {
+                id: 'uranus',
+                name: 'Уран',
+                type: 'Мұзды гигант',
+                desc: 'Осьтік айналуы жанбастап жатқан сияқты ерекше қырын орналасқан планета.',
+                stat1: '8.681 × 10^25 кг',
+                stat2: '50,724 км',
+                color: 0x66ccff,
+                size: 2.8,
+                dist: 94,
+                speed: 0.004
+            },
+            {
+                id: 'neptune',
+                name: 'Нептун',
+                type: 'Мұзды гигант',
+                desc: 'Күннен ең алыс орналасқан планета. Онда Күн жүйесіндегі ең қатты желдер соғады.',
+                stat1: '1.024 × 10^26 кг',
+                stat2: '49,244 км',
+                color: 0x3344ff,
+                size: 2.7,
+                dist: 110,
+                speed: 0.003
+            },
+            {
+                id: 'ton618',
+                name: 'TON 618',
+                type: 'Аса Жойқын Қара Құрдым',
+                desc: 'Әлемдегі ең үлкен қара құрдымдардың бірі. Массасы Күннен 66 миллиард есе үлкен.',
+                stat1: '66,000,000,000 М☉',
+                stat2: '390 миллиард км',
+                color: 0xff0055,
+                size: 12,
+                dist: 180,
+                speed: 0.001,
+                isBlackHole: true
+            }
+        ];
+
+        // 2. Three.js Негізгі Сахнаны құру
+        let scene, camera, renderer, controls;
+        const planetObjects = [];
+        let focusedObject = null;
+
+        function initScene() {
+            const container = document.getElementById('webgl-container');
+
+            scene = new THREE.Scene();
+            scene.fog = new THREE.FogExp2(0x020208, 0.002);
+
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 2000);
+            camera.position.set(0, 50, 120);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            container.appendChild(renderer.domElement);
+
+            // Басқару (OrbitControls)
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.maxDistance = 600;
+
+            // Жарықтандыру
+            const ambientLight = new THREE.AmbientLight(0x333344, 1.5);
+            scene.add(ambientLight);
+
+            const sunLight = new THREE.PointLight(0xffffff, 2, 500);
+            scene.add(sunLight);
+
+            // Жұлдызды Фонды құру
+            createStarfield();
+
+            // Планеталар мен TON 618 жасау
+            createCelestialBodies();
+
+            // Навигациялық панельді құру
+            buildNavigation();
+
+            // Терезе өлшемі өзгергенде
+            window.addEventListener('resize', onWindowResize);
+
+            // Анимациялық циклды бастау
+            animate();
+        }
+
+        // Жұлдыздар фоны
+        function createStarfield() {
+            const starsGeo = new THREE.BufferGeometry();
+            const count = 4000;
+            const positions = new Float32Array(count * 3);
+
+            for(let i = 0; i < count * 3; i++) {
+                positions[i] = (Math.random() - 0.5) * 1200;
+            }
+
+            starsGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            const starsMat = new THREE.PointsMaterial({ size: 1, color: 0xffffff, transparent: true, opacity: 0.8 });
+            const starMesh = new THREE.Points(starsGeo, starsMat);
+            scene.add(starMesh);
+        }
+
+        // Объектілерді сахнаға салу
+        function createCelestialBodies() {
+            celestialData.forEach(data => {
+                const group = new THREE.Group();
+                scene.add(group);
+
+                let mesh;
+
+                if (data.isBlackHole) {
+                    // TON 618 Моделі
+                    const bhGeo = new THREE.SphereGeometry(data.size, 32, 32);
+                    const bhMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+                    mesh = new THREE.Mesh(bhGeo, bhMat);
+
+                    // Фотон Сферасы
+                    const glowGeo = new THREE.SphereGeometry(data.size * 1.08, 32, 32);
+                    const glowMat = new THREE.MeshBasicMaterial({ color: 0x00f2fe, side: THREE.BackSide, transparent: true, opacity: 0.6 });
+                    mesh.add(new THREE.Mesh(glowGeo, glowMat));
+
+                    // Аккрециялық Диск
+                    const ringGeo = new THREE.RingGeometry(data.size * 1.4, data.size * 3.2, 64);
+                    const ringMat = new THREE.MeshBasicMaterial({ color: 0xff0055, side: THREE.DoubleSide, transparent: true, opacity: 0.85 });
+                    const ring = new THREE.Mesh(ringGeo, ringMat);
+                    ring.rotation.x = Math.PI / 2.5;
+                    mesh.add(ring);
+
+                } else if (data.id === 'sun') {
+                    // Күн
+                    const geo = new THREE.SphereGeometry(data.size, 32, 32);
+                    const mat = new THREE.MeshBasicMaterial({ color: data.color });
+                    mesh = new THREE.Mesh(geo, mat);
+
+                    // Күн жарқылы
+                    const glowGeo = new THREE.SphereGeometry(data.size * 1.15, 32, 32);
+                    const glowMat = new THREE.MeshBasicMaterial({ color: 0xffaa00, transparent: true, opacity: 0.3 });
+                    mesh.add(new THREE.Mesh(glowGeo, glowMat));
+
+                } else {
+                    // Қарапайым Планеталар
+                    const geo = new THREE.SphereGeometry(data.size, 32, 32);
+                    const mat = new THREE.MeshStandardMaterial({ color: data.color, roughness: 0.7 });
+                    mesh = new THREE.Mesh(geo, mat);
+
+                    // Сатурн сақинасы
+                    if (data.hasRings) {
+                        const ringGeo = new THREE.RingGeometry(data.size * 1.4, data.size * 2.3, 32);
+                        const ringMat = new THREE.MeshBasicMaterial({ color: 0xccb153, side: THREE.DoubleSide, transparent: true, opacity: 0.7 });
+                        const ring = new THREE.Mesh(ringGeo, ringMat);
+                        ring.rotation.x = Math.PI / 2;
+                        mesh.add(ring);
+                    }
+
+                    // Орбиталық сызықтар
+                    const orbitGeo = new THREE.BufferGeometry();
+                    const points = [];
+                    for(let i = 0; i <= 128; i++) {
+                        const theta = (i / 128) * Math.PI * 2;
+                        points.push(new THREE.Vector3(Math.cos(theta) * data.dist, 0, Math.sin(theta) * data.dist));
+                    }
+                    orbitGeo.setFromPoints(points);
+                    const orbitMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.08 });
+                    scene.add(new THREE.Line(orbitGeo, orbitMat));
+                }
+
+                mesh.position.x = data.dist;
+                group.add(mesh);
+
+                planetObjects.push({
+                    data: data,
+                    group: group,
+                    mesh: mesh,
+                    angle: Math.random() * Math.PI * 2
+                });
+            });
+        }
+
+        // Навигациялық түймелерді шығару
+        function buildNavigation() {
+            const nav = document.getElementById('planetNav');
+            celestialData.forEach((data, index) => {
+                const btn = document.createElement('button');
+                btn.className = `planet-btn ${data.isBlackHole ? 'ton-btn' : ''} ${index === 0 ? 'active' : ''}`;
+                btn.innerText = data.name;
+                btn.onclick = () => selectObject(index);
+                nav.appendChild(btn);
+            });
+        }
+
+        // Объектіні таңдау және Камераны жылжыту
+        function selectObject(index) {
+            const target = planetObjects[index];
+            focusedObject = target;
+
+            // Батырмалар стилін жаңарту
+            const btns = document.querySelectorAll('.planet-btn');
+            btns.forEach((btn, i) => {
+                if (i === index) btn.classList.add('active');
+                else btn.classList.remove('active');
+            });
+
+            // Инфо-картаны жаңарту
+            document.getElementById('objectName').innerText = target.data.name;
+            document.getElementById('objectType').innerText = target.data.type;
+            document.getElementById('objectDesc').innerText = target.data.desc;
+            document.getElementById('stat1').innerText = target.data.stat1;
+            document.getElementById('stat2').innerText = target.data.stat2;
+        }
+
+        // Рендер және анимация
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // Планеталардың Күнді айналуы
+            planetObjects.forEach(obj => {
+                if (obj.data.speed > 0) {
+                    obj.angle += obj.data.speed * 0.2;
+                    obj.mesh.position.x = Math.cos(obj.angle) * obj.data.dist;
+                    obj.mesh.position.z = Math.sin(obj.angle) * obj.data.dist;
+                }
+                // Өз осынан айналуы (360°)
+                obj.mesh.rotation.y += 0.01;
+            });
+
+            // Камераның таңдалған объектіге ақырын баруы
+            if (focusedObject) {
+                const worldPos = new THREE.Vector3();
+                focusedObject.mesh.getWorldPosition(worldPos);
+
+                const offset = focusedObject.data.size * 3.5 + 5;
+                const targetCamPos = new THREE.Vector3(
+                    worldPos.x + offset * 0.7,
+                    worldPos.y + offset * 0.4,
+                    worldPos.z + offset
+                );
+
+                camera.position.lerp(targetCamPos, 0.05);
+                controls.target.lerp(worldPos, 0.05);
+            }
+
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        // Модальді терезе функциялары
+        function openCodeModal() {
+            document.getElementById('codeArea').value = document.documentElement.outerHTML;
+            document.getElementById('codeModal').classList.add('active');
+        }
+
+        function closeCodeModal() {
+            document.getElementById('codeModal').classList.remove('active');
+        }
+
+        function openDonateModal() {
+            document.getElementById('donateModal').classList.add('active');
+        }
+
+        function closeDonateModal() {
+            document.getElementById('donateModal').classList.remove('active');
+        }
+
+        function copySourceCode() {
+            const codeArea = document.getElementById('codeArea');
+            codeArea.select();
+            document.execCommand('copy');
+            alert('Код сәтті көшірілді!');
+        }
+
+        // Оқиғаны бастау
+        window.onload = initScene;
+    </script>
+</body>
+</html>
